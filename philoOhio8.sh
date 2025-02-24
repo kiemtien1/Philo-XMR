@@ -1,4 +1,3 @@
-
 #!/bin/bash
 
 # List of regions and corresponding AMI IDs
@@ -35,7 +34,7 @@ for region in "${!region_image_map[@]}"; do
     image_id=${region_image_map[$region]}
 
     # Check if Key Pair exists
-    key_name="Mitsituno-$region"
+    key_name="name01-$region"
     if aws ec2 describe-key-pairs --key-names "$key_name" --region "$region" > /dev/null 2>&1; then
         echo "Key Pair $key_name already exists in $region"
     else
@@ -76,6 +75,28 @@ for region in "${!region_image_map[@]}"; do
     else
         echo "SSH (22) access already configured for Security Group $sg_name in $region"
     fi
+
+    # Automatically select an available Subnet ID for Auto Scaling Group
+    subnet_id=$(aws ec2 describe-subnets --region $region --query "Subnets[0].SubnetId" --output text)
+
+    if [ -z "$subnet_id" ]; then
+        echo "No available Subnet found in $region. Skipping region."
+        continue
+    fi
+
+    echo "Using Subnet ID $subnet_id for Auto Scaling Group in $region"
+
+    # Create Auto Scaling Group with selected Subnet ID
+    asg_name="SpotASG-$region"
+    aws autoscaling create-auto-scaling-group \
+        --auto-scaling-group-name $asg_name \
+        --launch-template "LaunchTemplateId=$launch_template_id,Version=1" \
+        --min-size 1 \
+        --max-size 10 \
+        --desired-capacity 1 \
+        --vpc-zone-identifier "$subnet_id" \
+        --region $region
+    echo "Auto Scaling Group $asg_name created in $region"
 
     # Launch 1 On-Demand EC2 Instance
     instance_id=$(aws ec2 run-instances \
