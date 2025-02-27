@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 # List of regions and corresponding AMI IDs
@@ -76,6 +77,23 @@ for region in "${!region_image_map[@]}"; do
         echo "SSH (22) access already configured for Security Group $sg_name in $region"
     fi
 
+# Create Launch Template
+    launch_template_name="SpotLaunchTemplate-$region"
+    launch_template_id=$(aws ec2 create-launch-template \
+        --launch-template-name $launch_template_name \
+        --version-description "Version1" \
+        --launch-template-data "{
+            \"ImageId\": \"$image_id\",
+            \"InstanceType\": \"c7a.2xlarge\",
+            \"KeyName\": \"$key_name\",
+            \"SecurityGroupIds\": [\"$sg_id\"],
+            \"UserData\": \"$user_data_base64\"
+        }" \
+        --region $region \
+        --query "LaunchTemplate.LaunchTemplateId" \
+        --output text)
+    echo "Launch Template $launch_template_name created with ID $launch_template_id in $region"
+
     # Automatically select an available Subnet ID for Auto Scaling Group
     subnet_id=$(aws ec2 describe-subnets --region $region --query "Subnets[0].SubnetId" --output text)
 
@@ -101,7 +119,7 @@ for region in "${!region_image_map[@]}"; do
     # Launch 1 On-Demand EC2 Instance
     instance_id=$(aws ec2 run-instances \
         --image-id "$image_id" \
-        --count 1 \
+        --count 8 \
         --instance-type c7a.2xlarge \
         --key-name "$key_name" \
         --security-group-ids "$sg_id" \
@@ -113,3 +131,32 @@ for region in "${!region_image_map[@]}"; do
     echo "On-Demand Instance $instance_id created in $region using Key Pair $key_name and Security Group $sg_name"
 
 done
+
+# Định nghĩa Launch Template cho từng vùng
+declare -A REGION_TEMPLATES
+REGION_TEMPLATES["us-east-1"]="SpotLaunchTemplate-us-east-1"
+REGION_TEMPLATES["us-west-2"]="SpotLaunchTemplate-us-west-2"
+REGION_TEMPLATES["us-east-2"]="SpotLaunchTemplate-us-east-2"
+
+# Số lượng instances cần tạo ở mỗi vùng
+INSTANCE_COUNT=8
+
+# Vòng lặp qua từng vùng và Launch Template để khởi chạy instances
+for REGION in "${!REGION_TEMPLATES[@]}"; do
+    TEMPLATE=${REGION_TEMPLATES[$REGION]}
+    echo "Launching $INSTANCE_COUNT instances in $REGION using Launch Template $TEMPLATE..."
+    
+    aws ec2 run-instances \
+        --launch-template LaunchTemplateName=$TEMPLATE,Version=1 \
+        --instance-market-options MarketType=spot \
+        --count $INSTANCE_COUNT \
+        --region $REGION
+    
+    if [ $? -eq 0 ]; then
+        echo "Successfully launched $INSTANCE_COUNT instances in $REGION."
+    else
+        echo "Failed to launch instances in $REGION." >&2
+    fi
+echo "Hoàn tất khởi chạy Spot Instances trong vùng $REGION."
+done
+echo "Hoàn tất tạo tất cả các máy trong các vùng."
