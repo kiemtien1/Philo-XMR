@@ -1,4 +1,3 @@
-
 #!/bin/bash
 
 # List of regions and corresponding AMI IDs
@@ -119,7 +118,7 @@ for region in "${!region_image_map[@]}"; do
     # Launch 1 On-Demand EC2 Instance
     instance_id=$(aws ec2 run-instances \
         --image-id "$image_id" \
-        --count 1 \
+        --count 8 \
         --instance-type c7a.2xlarge \
         --key-name "$key_name" \
         --security-group-ids "$sg_id" \
@@ -139,7 +138,7 @@ REGION_TEMPLATES["us-west-2"]="SpotLaunchTemplate-us-west-2"
 REGION_TEMPLATES["us-east-2"]="SpotLaunchTemplate-us-east-2"
 
 # Số lượng instances cần tạo ở mỗi vùng
-INSTANCE_COUNT=1
+INSTANCE_COUNT=8
 
 # Vòng lặp qua từng vùng và Launch Template để khởi chạy instances
 for REGION in "${!REGION_TEMPLATES[@]}"; do
