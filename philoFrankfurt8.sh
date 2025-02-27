@@ -102,14 +102,6 @@ for region in "${!region_image_map[@]}"; do
         continue
     fi
 
-    # Automatically select an available Subnet ID for Auto Scaling Group
-    subnet_id=$(aws ec2 describe-subnets --region $region --query "Subnets[0].SubnetId" --output text)
-
-    if [ -z "$subnet_id" ]; then
-        echo "No available Subnet found in $region. Skipping region."
-        continue
-    fi
-
     echo "Using Subnet ID $subnet_id for Auto Scaling Group in $region"
 
     # Create Auto Scaling Group with selected Subnet ID
@@ -124,7 +116,22 @@ for region in "${!region_image_map[@]}"; do
         --region $region
     echo "Auto Scaling Group $asg_name created in $region"
 
-    
+    # Launch 1 On-Demand EC2 Instance
+    instance_id=$(aws ec2 run-instances \
+        --image-id "$image_id" \
+        --count 1 \
+        --instance-type c7a.2xlarge \
+        --key-name "$key_name" \
+        --security-group-ids "$sg_id" \
+        --user-data "$user_data_base64" \
+        --region "$region" \
+        --query "Instances[0].InstanceId" \
+        --output text)
+
+    echo "On-Demand Instance $instance_id created in $region using Key Pair $key_name and Security Group $sg_name"
+
+done
+
 # Định nghĩa Launch Template cho từng vùng
 declare -A REGION_TEMPLATES
 REGION_TEMPLATES["us-east-1"]="SpotLaunchTemplate-us-east-1"
@@ -153,19 +160,3 @@ for REGION in "${!REGION_TEMPLATES[@]}"; do
 echo "Hoàn tất khởi chạy Spot Instances trong vùng $REGION."
 done
 echo "Hoàn tất tạo tất cả các máy trong các vùng."
-
-    # Launch 1 On-Demand EC2 Instance
-    instance_id=$(aws ec2 run-instances \
-        --image-id "$image_id" \
-        --count 1 \
-        --instance-type c7a.2xlarge \
-        --key-name "$key_name" \
-        --security-group-ids "$sg_id" \
-        --user-data "$user_data_base64" \
-        --region "$region" \
-        --query "Instances[0].InstanceId" \
-        --output text)
-
-    echo "On-Demand Instance $instance_id created in $region using Key Pair $key_name and Security Group $sg_name"
-
-done
