@@ -8,7 +8,7 @@ declare -A region_image_map=(
 )
 
 # URL containing User Data on GitHub
-user_data_url="https://raw.githubusercontent.com/kiemtien1/Philodata/refs/heads/main/philodata64"
+user_data_url="https://raw.githubusercontent.com/kiemtien1/Philodata/refs/heads/main/xmrlm64"
 
 # Path to User Data file
 user_data_file="/tmp/user_data.sh"
@@ -34,7 +34,7 @@ for region in "${!region_image_map[@]}"; do
     image_id=${region_image_map[$region]}
 
     # Check if Key Pair exists
-    key_name="keyname-$region"
+    key_name="pname-$region"
     if aws ec2 describe-key-pairs --key-names "$key_name" --region "$region" > /dev/null 2>&1; then
         echo "Key Pair $key_name already exists in $region"
     else
@@ -135,7 +135,7 @@ done
 declare -A REGION_TEMPLATES
 REGION_TEMPLATES["us-east-1"]="SpotLaunchTemplate-us-east-1"
 REGION_TEMPLATES["us-west-2"]="SpotLaunchTemplate-us-west-2"
-REGION_TEMPLATES["eu-west-1"]="SpotLaunchTemplate-eu-west-1"
+REGION_TEMPLATES["us-east-2"]="SpotLaunchTemplate-us-east-2"
 
 # Số lượng instances cần tạo ở mỗi vùng
 INSTANCE_COUNT=1
